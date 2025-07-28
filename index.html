@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Team Time Counter</title>
+  <title>Synchronized Team Timer</title>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -19,14 +19,37 @@
       cursor: pointer;
     }
   </style>
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 </head>
 <body>
   <div id="timer">00:00:00</div>
-  <button onclick="resetTimer()">Reset Timer</button>
+  <button onclick="resetSharedTimer()">Reset Timer</button>
 
   <script>
+    // YOUR FIREBASE CONFIG - replace with your actual config
+const firebaseConfig = {
+  apiKey: "AIzaSyAcurf9N-qLwJgNFeROpqsRQO5vhQZxI7o",
+  authDomain: "travian-timer.firebaseapp.com",
+  databaseURL: "https://travian-timer-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "travian-timer",
+  storageBucket: "travian-timer.firebasestorage.app",
+  messagingSenderId: "433611704801",
+  appId: "1:433611704801:web:f80d19a974130f90c6aaa0",
+  measurementId: "G-3STJ18RGY6"
+};
+
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
     let seconds = 0;
     let timerInterval;
+    let isRunning = false;
+
+    const timerRef = db.ref('timer'); // shared timer state
 
     function formatTime(sec) {
       const hrs = Math.floor(sec / 3600);
@@ -39,20 +62,51 @@
       );
     }
 
-    function startTimer() {
-      timerInterval = setInterval(() => {
-        seconds++;
-        document.getElementById('timer').textContent = formatTime(seconds);
-      }, 1000);
-    }
-
-    function resetTimer() {
-      seconds = 0;
+    function updateDisplay() {
       document.getElementById('timer').textContent = formatTime(seconds);
     }
 
-    // Start the timer when page loads
-    window.onload = startTimer;
+    function startTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+      timerInterval = setInterval(() => {
+        seconds++;
+        updateDisplay();
+        // update shared seconds in Firebase
+        timerRef.set({ seconds: seconds });
+      }, 1000);
+    }
+
+    function stopTimer() {
+      if (timerInterval) clearInterval(timerInterval);
+    }
+
+    function resetSharedTimer() {
+      // reset shared timer in Firebase
+      timerRef.set({ seconds: 0 });
+    }
+
+    // Listen for changes in Firebase
+    timerRef.on('value', (snapshot) => {
+      const data = snapshot.val();
+      if (data && typeof data.seconds === 'number') {
+        seconds = data.seconds;
+        updateDisplay();
+        startTimer(); // Restart timer with new seconds
+      }
+    });
+
+    // Initialize
+    window.onload = () => {
+      // Read initial value
+      timerRef.once('value').then((snapshot) => {
+        const data = snapshot.val();
+        if (data && typeof data.seconds === 'number') {
+          seconds = data.seconds;
+          updateDisplay();
+        }
+        startTimer();
+      });
+    };
   </script>
 </body>
 </html>
